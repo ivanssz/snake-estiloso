@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>🐍 Snake Estiloso</title>
+<style>
+  :root{
+    --bg1: #0a0020;
+    --bg2: #1b0044;
+    --snake-gradient: linear-gradient(135deg, #00ff88, #00ffff, #00bfff);
+    --apple: #ff0044;
+  }
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: radial-gradient(circle at top, var(--bg2), var(--bg1));
+    color:#fff;
+    font-family: 'Segoe UI', sans-serif;
+    flex-direction:column;
+  }
+  h1{
+    color:#00ffee;
+    margin-bottom:8px;
+    text-shadow:0 0 10px #00ffee,0 0 20px #00ffee;
+  }
+  canvas{
+    border:4px solid #00ffee;
+    border-radius:12px;
+    box-shadow:0 0 20px #00ffee80;
+    background: radial-gradient(circle at center, #000010 20%, #001830 100%);
+  }
+  #pontuacao{
+    margin-top:10px;
+    font-weight:700;
+    color:#00ffb3;
+    text-shadow:0 0 6px #00ffb3;
+  }
+  .painel{
+    margin-top:15px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:rgba(255,255,255,0.06);
+    padding:8px 14px;
+    border-radius:12px;
+    backdrop-filter:blur(6px);
+    box-shadow:0 0 10px #00ffee40 inset;
+  }
+  .painel label{
+    font-size:15px;
+    color:#00ffee;
+  }
+  input[type=range]{
+    width:150px;
+    accent-color:#00ffee;
+  }
+  .controles{
+    margin-top:14px;
+    display:grid;
+    grid-template-columns:repeat(3,64px);
+    gap:8px;
+  }
+  .botao{
+    width:64px;
+    height:64px;
+    border-radius:10px;
+    border:2px solid #00ffee;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:26px;
+    background: rgba(0,255,255,0.1);
+    color:#00ffee;
+    cursor:pointer;
+    user-select:none;
+    box-shadow:0 0 6px #00ffee40 inset;
+    transition:all .1s;
+  }
+  .botao:active{
+    transform:scale(.96);
+    background:#00ffee;
+    color:#000;
+  }
+  @media (max-width:680px){
+    canvas{ width:90vw; height:90vw; }
+  }
+</style>
+</head>
+<body>
+  <h1>🐍 Snake Estiloso</h1>
+  <canvas id="game" width="600" height="600"></canvas>
+  <div id="pontuacao">Pontuação: 0</div>
+
+  <div class="painel">
+    <label for="velocidade">Velocidade 🏎️</label>
+    <input type="range" id="velocidade" min="50" max="200" value="100">
+  </div>
+
+  <div class="controles" aria-hidden="true">
+    <div></div><div class="botao" id="cima">⬆️</div><div></div>
+    <div class="botao" id="esq">⬅️</div><div></div><div class="botao" id="dir">➡️</div>
+    <div></div><div class="botao" id="baixo">⬇️</div><div></div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const BOX = 20;
+  const SIZE = 600;
+  const COLS = SIZE / BOX;
+  const ROWS = SIZE / BOX;
+
+  // Estado do jogo
+  let snake = [];
+  let dir = 'RIGHT';
+  let nextDir = 'RIGHT';
+  let food = {x:0,y:0};
+  let score = 0;
+  let speed = 100; // ms
+  let gameLoop = null;
+
+  const scoreDiv = document.getElementById('pontuacao');
+  const velSlider = document.getElementById('velocidade');
+
+  velSlider.addEventListener('input', () => {
+    speed = velSlider.value;
+    if (gameLoop) {
+      clearInterval(gameLoop);
+      gameLoop = setInterval(tick, speed);
+    }
+  });
+
+  // inicia o jogo
+  function startGame(){
+    snake = [
+      {x:10*BOX, y:10*BOX},
+      {x:9*BOX, y:10*BOX},
+      {x:8*BOX, y:10*BOX}
+    ];
+    dir='RIGHT'; nextDir='RIGHT'; score=0;
+    placeFood();
+    scoreDiv.textContent = "Pontuação: 0";
+    if (gameLoop) clearInterval(gameLoop);
+    gameLoop = setInterval(tick, speed);
+    draw();
+  }
+
+  function placeFood(){
+    let ok=false;
+    while(!ok){
+      const x=Math.floor(Math.random()*COLS)*BOX;
+      const y=Math.floor(Math.random()*ROWS)*BOX;
+      if(!snake.some(s=>s.x===x && s.y===y)){
+        food={x,y}; ok=true;
+      }
+    }
+  }
+
+  function tick(){
+    dir = nextDir;
+    let headX = snake[0].x;
+    let headY = snake[0].y;
+    if(dir==='LEFT') headX-=BOX;
+    if(dir==='RIGHT') headX+=BOX;
+    if(dir==='UP') headY-=BOX;
+    if(dir==='DOWN') headY+=BOX;
+
+    // colisões
+    if(headX<0||headY<0||headX>=SIZE||headY>=SIZE||
+       snake.some(s=>s.x===headX && s.y===headY)){
+      gameOver();
+      return;
+    }
+
+    const newHead={x:headX,y:headY};
+    snake.unshift(newHead);
+
+    // comeu
+    if(headX===food.x && headY===food.y){
+      score++;
+      scoreDiv.textContent = "Pontuação: "+score;
+      placeFood();
+    }else{
+      snake.pop();
+    }
+    draw();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,SIZE,SIZE);
+
+    // comida (maçã vibrante)
+    ctx.fillStyle = '#ff0033';
+    ctx.beginPath();
+    ctx.arc(food.x+BOX/2, food.y+BOX/2, BOX/2.2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#00ff00';
+    ctx.fillRect(food.x+BOX/2-2, food.y+3, 4, 6);
+
+    // corpo da cobra com gradiente
+    for(let i=snake.length-1;i>=0;i--){
+      const s=snake[i];
+      const grad=ctx.createLinearGradient(s.x,s.y,s.x+BOX,s.y+BOX);
+      grad.addColorStop(0,'#00ff99');
+      grad.addColorStop(0.5,'#00ffff');
+      grad.addColorStop(1,'#0099ff');
+      ctx.fillStyle=grad;
+      ctx.fillRect(s.x,s.y,BOX,BOX);
+      ctx.strokeStyle='#002233';
+      ctx.strokeRect(s.x,s.y,BOX,BOX);
+    }
+
+    // olhos na cabeça
+    const head=snake[0];
+    ctx.fillStyle='#000';
+    if(dir==='LEFT'||dir==='RIGHT'){
+      const o=(dir==='LEFT')?-5:5;
+      ctx.beginPath();
+      ctx.arc(head.x+BOX/2+o/2,head.y+BOX/2-3,2,0,Math.PI*2);
+      ctx.arc(head.x+BOX/2+o/2,head.y+BOX/2+3,2,0,Math.PI*2);
+      ctx.fill();
+    }else{
+      const o=(dir==='UP')?-5:5;
+      ctx.beginPath();
+      ctx.arc(head.x+BOX/2-3,head.y+BOX/2+o/2,2,0,Math.PI*2);
+      ctx.arc(head.x+BOX/2+3,head.y+BOX/2+o/2,2,0,Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  function gameOver(){
+    clearInterval(gameLoop);
+    setTimeout(()=>{
+      alert("💀 Game Over! Pontuação: "+score);
+      startGame();
+    },100);
+  }
+
+  // controles
+  window.onkeydown=(e)=>{
+    if(e.key==='ArrowLeft'&&dir!=='RIGHT')nextDir='LEFT';
+    else if(e.key==='ArrowRight'&&dir!=='LEFT')nextDir='RIGHT';
+    else if(e.key==='ArrowUp'&&dir!=='DOWN')nextDir='UP';
+    else if(e.key==='ArrowDown'&&dir!=='UP')nextDir='DOWN';
+  };
+
+  document.getElementById('cima').onclick=()=>{if(dir!=='DOWN')nextDir='UP';};
+  document.getElementById('baixo').onclick=()=>{if(dir!=='UP')nextDir='DOWN';};
+  document.getElementById('esq').onclick=()=>{if(dir!=='RIGHT')nextDir='LEFT';};
+  document.getElementById('dir').onclick=()=>{if(dir!=='LEFT')nextDir='RIGHT';};
+
+  startGame();
+})();
+</script>
+</body>
+</html>
